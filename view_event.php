@@ -1,262 +1,473 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+session_start();
+require_once __DIR__ . '/../db_connect.php';
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+/** @var PDO $pdo */
+
+// Security Check
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Student') {
+    header("Location: ../Module 1/index.php");
+    exit();
 }
 
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['user_id'] = '201'; 
-    $_SESSION['username'] = 'Ahmad Zaki';
-    $_SESSION['role'] = 'Student';
-}
+$user_id = $_SESSION['user_id'];
 
-$host = 'localhost';
-$port = 3307;        
-$dbname = 'fk_sc_ems';
-$user = 'root';
-$pass = '';
+$message = '';
+$messageType = '';
 
-try {
-    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
-} catch (PDOException $e) {
-    die("Database Connection Error: " . $e->getMessage());
-}
+// Cancel Registration
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_registration_id'])) {
 
-$error = "";
-$success = "";
-$eventID = trim($_GET['id'] ?? '');
+    $registration_id = $_POST['cancel_registration_id'];
 
-if (empty($eventID)) {
-    header("Location: dashboard.php");
-    exit;
-}
-
-try {
-    $stmt = $pdo->prepare("SELECT * FROM event WHERE eventID = ?");
-    $stmt->execute([$eventID]);
-    $event = $stmt->fetch();
-} catch (Exception $e) {
-    $error = "Failed to sync resource: " . $e->getMessage();
-}
-
-if (!$event) {
-    die("Invalid Resource Identifier requested.");
-}
-
-$participants = [];
-try {
-    $partStmt = $pdo->prepare("
-        SELECT r.registrationID, r.registrationDate, r.status, r.userID, r.userID AS studentMetric
-        FROM registration r
-        WHERE r.eventID = ?
-        ORDER BY r.registrationDate DESC
+    $stmt = $pdo->prepare("
+        UPDATE event_registration
+        SET eventRegistrationStatus = 'Cancelled'
+        WHERE EventRegistration_ID = ?
+        AND User_ID = ?
     ");
-    $partStmt->execute([$eventID]);
-    $participants = $partStmt->fetchAll();
-} catch (Exception $e) {
-    $error = "Failed to sync participant list: " . $e->getMessage();
+
+    $stmt->execute([$registration_id, $user_id]);
+
+    $message = "Registration cancelled successfully.";
+    $messageType = "success";
 }
 
-$totalParticipants = count($participants);
+// Read Registration Data
+$stmt = $pdo->prepare("
+    SELECT 
+        er.EventRegistration_ID,
+        er.eventRegistrationStatus,
+        e.Event_ID,
+        e.eventTitle,
+        e.eventDescription,
+        e.eventDate,
+        e.eventStartTime,
+        e.eventEndTime,
+        c.clubName
+    FROM event_registration er
+    INNER JOIN event e 
+        ON er.Event_ID = e.Event_ID
+    LEFT JOIN club c 
+        ON e.Club_ID = c.Club_ID
+    WHERE er.User_ID = ?
+    ORDER BY e.eventDate ASC
+");
+
+$stmt->execute([$user_id]);
+$registrations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+function getStatusClass($status)
+{
+    $status = strtolower($status);
+
+    if ($status == 'approved' || $status == 'confirmed') {
+        return 'approved';
+    }
+
+    if ($status == 'pending' || $status == 'waiting list') {
+        return 'pending';
+    }
+
+    if ($status == 'cancelled') {
+        return 'cancelled';
+    }
+
+    return 'pending';
+}
 ?>
+
 <!DOCTYPE html>
-<html class="light" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>FK Management - View Event Roster</title>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#2563eb',
-            surface: '#faf8ff',
-            'surface-dim': '#d9d9e5',
-            'surface-container-low': '#f3f3fe',
-            'surface-container-high': '#ececf9',
-            'outline-variant': '#e0e0e0',
-            'secondary-container': '#e0e7ff',
-            danger: '#ef4444',
-            'danger-hover': '#dc2626'
-          },
-          fontFamily: {
-            manrope: ['Manrope', 'sans-serif'],
-          },
-          borderRadius: {
-            'round-four': '4px',
-          }
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>My Event Registration Page</title>
+
+    <link rel="stylesheet" href="../STYLE/BOOTSTRAP/bootstrap.min.css">
+
+    <style>
+
+        body{
+            background: #f5f7fb;
         }
-      }
-    }
-  </script>
-<style>
-    body {
-      font-family: 'Manrope', sans-serif;
-      background-color: #faf8ff;
-    }
-  </style>
+
+        #content{
+            padding: 30px;
+            width: 100%;
+        }
+
+        .page-title{
+            font-size: 52px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 10px;
+        }
+
+        .page-subtitle{
+            color: #64748b;
+            font-size: 22px;
+            margin-bottom: 35px;
+        }
+
+        .registration-card{
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .registration-table{
+            width: 100%;
+        }
+
+        .registration-table thead{
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .registration-table th{
+            padding: 25px;
+            color: #334155;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .registration-table td{
+            padding: 25px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .event-info{
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .event-icon{
+            width: 65px;
+            height: 65px;
+            background: #dbeafe;
+            color: #2563eb;
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        .event-title{
+            font-size: 30px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 5px;
+        }
+
+        .event-description{
+            color: #64748b;
+            font-size: 18px;
+            max-width: 500px;
+        }
+
+        .date-text{
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .time-text{
+            font-size: 18px;
+            color: #94a3b8;
+        }
+
+        .club-text{
+            font-size: 24px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .status-badge{
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 999px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .approved{
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .pending{
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .cancelled{
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .status-small{
+            margin-top: 8px;
+            font-size: 15px;
+            color: #94a3b8;
+        }
+
+        .cancel-btn{
+            border: 2px solid #fecaca;
+            background: white;
+            color: #ef4444;
+            border-radius: 14px;
+            padding: 12px 28px;
+            font-size: 20px;
+            font-weight: 700;
+            transition: 0.3s;
+        }
+
+        .cancel-btn:hover{
+            background: #fee2e2;
+        }
+
+        .cancel-btn:disabled{
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .bottom-text{
+            padding: 20px 25px;
+            color: #64748b;
+            font-size: 18px;
+        }
+
+        .success-message{
+            background: #dcfce7;
+            color: #15803d;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+    </style>
+
 </head>
-<body class="bg-surface text-slate-900">
-<header class="fixed top-0 left-0 right-0 h-[80px] bg-white border-b border-outline-variant flex justify-between items-center px-8 z-50">
-<div class="flex items-center gap-4">
-<div class="w-10 h-10 bg-primary flex items-center justify-center text-white font-bold rounded-round-four">FK</div>
-<h1 class="text-xl font-bold text-slate-800">FK Student Club &amp; Event Management</h1>
-</div>
-<div class="flex items-center gap-6">
-<div class="text-right">
-<p class="text-xs text-slate-500 font-medium">Student Portal</p>
-<p class="text-sm font-bold text-slate-800"><?php echo htmlspecialchars($_SESSION['username']); ?></p>
-</div>
-<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-round-four hover:bg-surface-container-low transition-all">
-<span class="material-icons text-primary">person</span>
-<span class="font-bold text-sm">Profile</span>
-</button>
-</div>
-</header>
-<div class="flex h-screen pt-[80px]">
-<nav class="w-64 fixed left-0 top-[80px] h-[calc(100vh-80px)] border-r border-outline-variant bg-white flex flex-col overflow-y-auto">
-<div class="p-6">
-<div class="flex items-center gap-2 text-primary mb-1">
-<span class="material-icons">groups</span>
-<span class="text-lg font-bold">FK Management</span>
-</div>
-<p class="text-xs text-slate-500 ml-8">Student Portal</p>
-</div>
-<div class="flex-1">
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="dashboard.php">
-<span class="material-icons">dashboard</span>
-<span class="text-sm font-medium">Dashboard</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">person</span>
-<span class="text-sm font-medium">Profile</span>
-</a>
-<div>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">event</span>
-<span class="text-sm font-medium">My Events</span>
-</a>
-<div class="pl-14 pb-2 flex flex-col gap-2">
-<a class="text-xs text-slate-500 hover:text-primary transition-colors" href="upcoming_events.php">Upcoming Event</a>
-<a class="text-xs text-slate-500 hover:text-primary transition-colors" href="my_registrations.php">My Registration</a>
-</div>
-</div>
-<div class="bg-secondary-container border-l-4 border-primary">
-<a class="px-6 py-3 flex items-center gap-3 text-primary" href="#">
-<span class="material-icons">visibility</span>
-<span class="text-sm font-bold">View Event</span>
-</a>
-</div>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">add_circle</span>
-<span class="text-sm font-medium">Create Event</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">how_to_reg</span>
-<span class="text-sm font-medium">Create Attendance</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">groups</span>
-<span class="text-sm font-medium">Committees</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">qr_code</span>
-<span class="text-sm font-medium">Event QR Code</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">assessment</span>
-<span class="text-sm font-medium">Report</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">card_membership</span>
-<span class="text-sm font-medium">Membership</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">star</span>
-<span class="text-sm font-medium">Merit</span>
-</a>
-<a class="px-6 py-3 flex items-center gap-3 text-slate-600 hover:bg-surface-container-low transition-colors" href="#">
-<span class="material-icons">history</span>
-<span class="text-sm font-medium">History</span>
-</a>
-</div>
-<div class="mt-auto border-t border-outline-variant">
-<button class="w-full px-6 py-4 flex items-center gap-3 text-danger hover:bg-red-50 transition-colors">
-<span class="material-icons">logout</span>
-<span class="text-sm font-bold">Logout</span>
-</button>
-</div>
-</nav>
-<main class="ml-64 flex-1 p-8 overflow-y-auto">
-<div class="max-w-6xl mx-auto space-y-6">
-<div class="flex items-center justify-between">
-<a href="dashboard.php" class="text-primary hover:underline text-sm font-bold flex items-center gap-1">
-<span class="material-icons text-sm">arrow_back</span> Dashboard
-</a>
-<a href="edit_event.php?id=<?php echo htmlspecialchars($event['eventID']); ?>" class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-round-four hover:bg-blue-700 transition-all shadow-sm flex items-center gap-1">
-<span class="material-icons text-sm">edit</span> Modify Parameters
-</a>
+
+<body>
+
+<?php include 'M3_topbar.php'; ?>
+
+<div id="wrapper">
+
+    <?php include 'M3_sidebar.php'; ?>
+
+    <div id="content">
+
+        <div class="container-fluid">
+
+            <h1 class="page-title">
+                My Event Registration Page
+            </h1>
+
+            <p class="page-subtitle">
+                View your registered events, check their status, and cancel registrations if needed.
+            </p>
+
+            <?php if(!empty($message)): ?>
+                <div class="success-message">
+                    <?php echo $message; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="registration-card">
+
+                <table class="registration-table">
+
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Date</th>
+                            <th>Club</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                    <?php if(count($registrations) > 0): ?>
+
+                        <?php foreach($registrations as $row): ?>
+
+                            <?php
+                                $statusClass = getStatusClass($row['eventRegistrationStatus']);
+                                $isCancelled = strtolower($row['eventRegistrationStatus']) == 'cancelled';
+                            ?>
+
+                            <tr>
+
+                                <td>
+                                    <div class="event-info">
+
+                                        <div class="event-icon">
+                                            E
+                                        </div>
+
+                                        <div>
+
+                                            <div class="event-title">
+                                                <?php echo htmlspecialchars($row['eventTitle']); ?>
+                                            </div>
+
+                                            <div class="event-description">
+                                                <?php echo htmlspecialchars($row['eventDescription']); ?>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+                                </td>
+
+                                <td>
+
+                                    <div class="date-text">
+                                        <?php echo date("M d, Y", strtotime($row['eventDate'])); ?>
+                                    </div>
+
+                                    <div class="time-text">
+                                        <?php echo date("g:i A", strtotime($row['eventStartTime'])); ?>
+                                        -
+                                        <?php echo date("g:i A", strtotime($row['eventEndTime'])); ?>
+                                    </div>
+
+                                </td>
+
+                                <td>
+
+                                    <div class="club-text">
+                                        <?php echo htmlspecialchars($row['clubName']); ?>
+                                    </div>
+
+                                </td>
+
+                                <td>
+
+                                    <div class="status-badge <?php echo $statusClass; ?>">
+
+                                        <?php
+                                            if($statusClass == 'approved'){
+                                                echo "✓";
+                                            }
+                                            elseif($statusClass == 'pending'){
+                                                echo "!";
+                                            }
+                                            else{
+                                                echo "×";
+                                            }
+                                        ?>
+
+                                        <?php echo htmlspecialchars($row['eventRegistrationStatus']); ?>
+
+                                    </div>
+
+                                    <div class="status-small">
+
+                                        <?php
+                                            if($statusClass == 'approved'){
+                                                echo "You're all set!";
+                                            }
+                                            elseif($statusClass == 'pending'){
+                                                echo "Waiting for approval.";
+                                            }
+                                            else{
+                                                echo "This registration was cancelled.";
+                                            }
+                                        ?>
+
+                                    </div>
+
+                                </td>
+
+                                <td>
+
+                                    <?php if(!$isCancelled): ?>
+
+                                        <form method="POST">
+
+                                            <input 
+                                                type="hidden" 
+                                                name="cancel_registration_id"
+                                                value="<?php echo $row['EventRegistration_ID']; ?>"
+                                            >
+
+                                            <button 
+                                                type="submit"
+                                                class="cancel-btn"
+                                                onclick="return confirm('Cancel this registration?')"
+                                            >
+                                                Cancel
+                                            </button>
+
+                                        </form>
+
+                                    <?php else: ?>
+
+                                        <button class="cancel-btn" disabled>
+                                            Cancel
+                                        </button>
+
+                                    <?php endif; ?>
+
+                                </td>
+
+                            </tr>
+
+                        <?php endforeach; ?>
+
+                    <?php else: ?>
+
+                        <tr>
+                            <td colspan="5" style="text-align:center; padding:50px; color:#94a3b8; font-size:22px;">
+                                No event registration found.
+                            </td>
+                        </tr>
+
+                    <?php endif; ?>
+
+                    </tbody>
+
+                </table>
+
+                <div class="bottom-text">
+                    Showing 
+                    <strong>
+                        <?php echo count($registrations) > 0 ? 1 : 0; ?>
+                    </strong>
+                    to
+                    <strong>
+                        <?php echo count($registrations); ?>
+                    </strong>
+                    of
+                    <strong>
+                        <?php echo count($registrations); ?>
+                    </strong>
+                    entries
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 
-<section class="bg-white border border-outline-variant rounded-round-four p-6 shadow-sm">
-<h2 class="text-2xl font-extrabold text-slate-800"><?php echo htmlspecialchars($event['eventName']); ?></h2>
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 text-xs font-medium text-slate-500">
-<div>Location: <span class="text-slate-800 font-bold"><?php echo htmlspecialchars($event['venueLocation']); ?></span></div>
-<div>Date: <span class="text-slate-800 font-bold"><?php echo date('M d, Y', strtotime($event['eventDate'])); ?></span></div>
-<div>Time: <span class="text-slate-800 font-bold"><?php echo date('h:i A', strtotime($event['eventTime'])); ?></span></div>
-<div>Capacity Status: <span class="text-slate-800 font-bold"><?php echo $totalParticipants; ?> / <?php echo htmlspecialchars($event['maxParticipants']); ?> Locked</span></div>
-</div>
-</section>
-
-<section class="bg-white border border-outline-variant rounded-round-four overflow-hidden shadow-sm">
-<div class="p-6 border-b border-outline-variant bg-slate-50 flex justify-between items-center">
-<h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Registered Participant Roster</h3>
-<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-primary"><?php echo $totalParticipants; ?> Entries Found</span>
-</div>
-<div class="overflow-x-auto">
-<table class="w-full text-left border-collapse">
-<thead class="bg-surface border-b border-outline-variant">
-<tr>
-<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Registration ID</th>
-<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">User Identification Token</th>
-<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Log Date Timestamp</th>
-<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Current Status Flag</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-outline-variant">
-<?php if ($totalParticipants > 0): ?>
-    <?php foreach ($participants as $row): ?>
-        <tr class="hover:bg-slate-50 transition-colors">
-        <td class="px-6 py-4 text-sm font-bold text-slate-800">#REG-<?php echo htmlspecialchars($row['registrationID']); ?></td>
-        <td class="px-6 py-4 text-sm text-slate-600">ID-<?php echo htmlspecialchars($row['studentMetric']); ?></td>
-        <td class="px-6 py-4 text-sm text-slate-600"><?php echo date('M d, Y H:i', strtotime($row['registrationDate'])); ?></td>
-        <td class="px-6 py-4">
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-        <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
-             <?php echo htmlspecialchars($row['status']); ?>
-        </span>
-        </td>
-        </tr>
-    <?php endforeach; ?>
-<?php else: ?>
-    <tr>
-        <td colspan="4" class="px-6 py-12 text-center text-slate-400 text-sm">No transaction entries processed for this context yet.</td>
-    </tr>
-<?php endif; ?>
-</tbody>
-</table>
-</div>
-</section>
-</div>
-</main>
-</div>
-</body></html>
+</body>
+</html>

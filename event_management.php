@@ -1,105 +1,391 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-if (session_status() === PHP_SESSION_NONE) session_start();
+session_start();
+require_once __DIR__ . '/../db_connect.php';
 
-$pdo = new PDO("mysql:host=localhost;port=3307;dbname=fk_sc_ems;charset=utf8mb4", 'root', '', [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-]);
+/** @var PDO $pdo */
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
-    $pdo->prepare("DELETE FROM event WHERE eventID = ?")->execute([$_POST['eventID']]);
+// SECURITY CHECK
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../Module 1/index.php");
+    exit();
 }
 
-$allEvents = $pdo->query("SELECT * FROM event ORDER BY eventDate DESC")->fetchAll();
+$userID = $_SESSION['user_id'];
+
+$message = '';
+$messageType = '';
+
+// REGISTER EVENT
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register_event_id'])) {
+
+    $eventID = $_POST['register_event_id'];
+
+    try {
+
+        // CHECK EVENT CAPACITY
+        $capacityStmt = $pdo->prepare("
+            SELECT 
+                e.eventMaxParticipant,
+                COUNT(er.EventRegistration_ID) AS totalRegistered
+            FROM event e
+            LEFT JOIN event_registration er 
+                ON e.Event_ID = er.Event_ID
+            WHERE e.Event_ID = ?
+            GROUP BY e.Event_ID
+        ");
+
+        $capacityStmt->execute([$eventID]);
+        $eventData = $capacityStmt->fetch(PDO::FETCH_ASSOC);
+
+        $maxParticipant = (int)$eventData['eventMaxParticipant'];
+        $totalRegistered = (int)$eventData['totalRegistered'];
+
+        // IF EVENT FULL
+        if ($totalRegistered >= $maxParticipant) {
+
+            $message = "Registration rejected. Event is full.";
+            $messageType = "danger";
+
+        } else {
+
+            // CHECK DUPLICATE REGISTRATION
+            $checkStmt = $pdo->prepare("
+                SELECT COUNT(*) 
+                FROM event_registration 
+                WHERE User_ID = ? AND Event_ID = ?
+            ");
+
+            $checkStmt->execute([$userID, $eventID]);
+            $alreadyRegistered = $checkStmt->fetchColumn();
+
+            if ($alreadyRegistered > 0) {
+
+                $message = "You already registered for this event.";
+                $messageType = "warning";
+
+            } else {
+
+                // INSERT REGISTRATION
+                $insertStmt = $pdo->prepare("
+                    INSERT INTO event_registration 
+                    (
+                        eventRegistrationStatus,
+                        eventRegistrationDate,
+                        User_ID,
+                        Event_ID
+                    )
+                    VALUES
+                    (?, ?, ?, ?)
+                ");
+
+                $insertStmt->execute([
+                    'Approved',
+                    date('Y-m-d'),
+                    $userID,
+                    $eventID
+                ]);
+
+                $message = "Event registered successfully!";
+                $messageType = "success";
+            }
+        }
+
+    } catch (PDOException $e) {
+
+        $message = "Registration failed: " . $e->getMessage();
+        $messageType = "danger";
+    }
+}
+
+// SEARCH FILTERS
+$search = $_GET['search'] ?? '';
+$club = $_GET['club'] ?? '';
+$date = $_GET['date'] ?? '';
+
+// FETCH EVENTS
+$sql = "
+    SELECT 
+        e.Event_ID,
+        e.eventTitle,
+        e.eventDescription,
+        e.eventDate,
+        e.eventStartTime,
+        e.eventEndTime,
+        e.eventVenue,
+        e.eventMaxParticipant,
+        e.Club_ID,
+        c.clubName,
+        COUNT(er.EventRegistration_ID) AS registeredCount
+    FROM event e
+    LEFT JOIN club c 
+        ON e.Club_ID = c.Club_ID
+    LEFT JOIN event_registration er 
+        ON e.Event_ID = er.Event_ID
+    WHERE 1=1
+";
+
+$params = [];
+
+if (!empty($search)) {
+    $sql .= " AND e.eventTitle LIKE ?";
+    $params[] = "%$search%";
+}
+
+if (!empty($club)) {
+    $sql .= " AND e.Club_ID = ?";
+    $params[] = $club;
+}
+
+if (!empty($date)) {
+    $sql .= " AND e.eventDate = ?";
+    $params[] = $date;
+}
+
+$sql .= "
+    GROUP BY e.Event_ID
+    ORDER BY e.eventDate ASC
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+
+$events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// FETCH CLUBS
+$clubStmt = $pdo->query("
+    SELECT Club_ID, clubName 
+    FROM club 
+    ORDER BY clubName ASC
+");
+
+$clubs = $clubStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Event Management - FK Management</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <style>body { font-family: 'Manrope', sans-serif; background-color: #f8fafc; }</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event List Page</title>
+
+    <link href="../STYLE/BOOTSTRAP/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../STYLE/CSS/Module 3/event_list_CSS.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 </head>
-<body class="bg-[#f8fafc] text-slate-900">
 
-<header class="fixed top-0 left-0 right-0 h-[80px] bg-white border-b border-gray-200 flex justify-between items-center px-8 z-50">
-    <div class="flex items-center gap-4">
-        <div class="w-10 h-10 bg-blue-600 flex items-center justify-center text-white font-bold rounded">FK</div>
-        <h1 class="text-xl font-bold text-slate-800">FK Student Club & Event Management</h1>
-    </div>
-    <div class="flex items-center gap-8">
-        <div class="text-right"><p class="text-[10px] text-gray-500 uppercase tracking-wider">Student Portal</p><p class="text-sm font-bold">Ahmad Zaki</p></div>
-        <button class="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"><span class="material-icons text-blue-600">person</span> <span class="font-bold text-sm">Profile</span></button>
-    </div>
-</header>
+<body>
 
-<div class="flex h-screen pt-[80px]">
-    <nav class="w-[280px] fixed left-0 top-[80px] h-[calc(100vh-80px)] border-r border-gray-200 bg-white flex flex-col px-4 py-8">
-        <div class="text-blue-600 font-bold mb-8 flex items-center gap-2 px-4"><span class="material-icons">groups</span> FK Management</div>
-        <div class="space-y-2 flex-1">
-            <a class="flex items-center gap-4 text-gray-600 p-3 rounded-lg hover:bg-gray-50" href="#"><span class="material-icons">dashboard</span> Dashboard</a>
-            <a class="flex items-center gap-4 text-gray-600 p-3 rounded-lg hover:bg-gray-50" href="#"><span class="material-icons">person</span> Profile</a>
-            <a class="flex items-center gap-4 text-blue-700 bg-blue-50 p-3 rounded-lg font-medium" href="event_management.php"><span class="material-icons">build</span> Event Management</a>
-            <a class="flex items-center gap-4 text-gray-600 p-3 rounded-lg hover:bg-gray-50" href="create_event.php"><span class="material-icons">add_circle</span> Create Event</a>
-            <a class="flex items-center gap-4 text-gray-600 p-3 rounded-lg hover:bg-gray-50" href="#"><span class="material-icons">how_to_reg</span> Create Attendance</a>
-            <a class="flex items-center gap-4 text-gray-600 p-3 rounded-lg hover:bg-gray-50" href="#"><span class="material-icons">groups</span> Committees</a>
-        </div>
-        <a class="text-red-500 flex items-center gap-3 font-bold px-4 pt-4 border-t" href="#"><span class="material-icons">logout</span> Logout</a>
-    </nav>
+<?php include 'M3_topbar.php'; ?>
 
-    <main class="ml-[280px] flex-1 p-8">
-        <h2 class="text-2xl font-bold text-slate-800 mb-8">Event Operations Control</h2>
-        
-        <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm mb-8 flex justify-between items-center">
-            <div class="relative w-1/2">
-                <span class="material-icons absolute left-3 top-3 text-gray-400">search</span>
-                <input id="search-input" type="text" placeholder="Search Master Catalog Records..." class="w-full pl-10 pr-4 py-3 border rounded-lg bg-gray-50">
+<div class="page-wrapper">
+
+    <?php include 'M3_sidebar.php'; ?>
+
+    <main class="main-content">
+
+        <h1>Event List Page</h1>
+
+        <p class="subtitle">
+            Browse and register for upcoming events organized by clubs.
+        </p>
+
+        <?php if (!empty($message)): ?>
+
+            <div class="alert alert-<?= $messageType ?>">
+                <?= htmlspecialchars($message) ?>
             </div>
-            <a href="create_event.php" class="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700">
-                <span class="material-icons">add</span> Add New Event
-            </a>
+
+        <?php endif; ?>
+
+        <!-- FILTER -->
+        <form method="GET" class="filter-box">
+
+            <div class="filter-item">
+
+                <label>Search Events</label>
+
+                <div class="input-icon">
+
+                    <i class="bi bi-search"></i>
+
+                    <input 
+                        type="text" 
+                        name="search"
+                        placeholder="Search by event name..."
+                        value="<?= htmlspecialchars($search) ?>"
+                    >
+
+                </div>
+
+            </div>
+
+            <div class="filter-item">
+
+                <label>Club</label>
+
+                <select name="club">
+
+                    <option value="">All Clubs</option>
+
+                    <?php foreach ($clubs as $c): ?>
+
+                        <option 
+                            value="<?= $c['Club_ID'] ?>"
+                            <?= ($club == $c['Club_ID']) ? 'selected' : '' ?>
+                        >
+                            <?= htmlspecialchars($c['clubName']) ?>
+                        </option>
+
+                    <?php endforeach; ?>
+
+                </select>
+
+            </div>
+
+            <div class="filter-item">
+
+                <label>Date</label>
+
+                <input 
+                    type="date" 
+                    name="date"
+                    value="<?= htmlspecialchars($date) ?>"
+                >
+
+            </div>
+
+            <button type="submit" class="search-btn">
+                Search
+            </button>
+
+        </form>
+
+        <!-- EVENT LIST -->
+        <div class="event-list">
+
+            <?php if (!empty($events)): ?>
+
+                <?php foreach ($events as $event): ?>
+
+                    <?php
+                    $registered = (int)$event['registeredCount'];
+                    $max = (int)$event['eventMaxParticipant'];
+                    $seatsLeft = $max - $registered;
+                    ?>
+
+                    <div class="event-card">
+
+                        <div class="event-image">
+                            <i class="bi bi-calendar-event"></i>
+                        </div>
+
+                        <div class="event-info">
+
+                            <h3>
+                                <?= htmlspecialchars($event['eventTitle']) ?>
+                            </h3>
+
+                            <p class="event-desc">
+                                <?= htmlspecialchars($event['eventDescription']) ?>
+                            </p>
+
+                            <div class="event-details">
+
+                                <div>
+
+                                    <i class="bi bi-calendar3"></i>
+
+                                    <span>
+                                        <?= date("F j, Y", strtotime($event['eventDate'])) ?>
+                                        <br>
+
+                                        <small>
+                                            <?= date("h:i A", strtotime($event['eventStartTime'])) ?>
+                                        </small>
+                                    </span>
+
+                                </div>
+
+                                <div>
+
+                                    <i class="bi bi-geo-alt"></i>
+
+                                    <span>
+                                        <?= htmlspecialchars($event['eventVenue']) ?>
+                                        <br>
+
+                                        <small>
+                                            <?= htmlspecialchars($event['clubName'] ?? 'Unknown Club') ?>
+                                        </small>
+                                    </span>
+
+                                </div>
+
+                                <div>
+
+                                    <i class="bi bi-people"></i>
+
+                                    <span>
+                                        <?= $seatsLeft ?> Seats Left
+                                        <br>
+
+                                        <small>
+                                            of <?= $max ?>
+                                        </small>
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="event-action">
+
+                            <?php if ($seatsLeft > 0): ?>
+
+                                <form method="POST">
+
+                                    <input 
+                                        type="hidden"
+                                        name="register_event_id"
+                                        value="<?= $event['Event_ID'] ?>"
+                                    >
+
+                                    <button type="submit" class="register-btn">
+                                        Register
+                                    </button>
+
+                                </form>
+
+                            <?php else: ?>
+
+                                <button class="full-btn" disabled>
+                                    Full
+                                </button>
+
+                            <?php endif; ?>
+
+                        </div>
+
+                    </div>
+
+                <?php endforeach; ?>
+
+            <?php else: ?>
+
+                <div class="no-event">
+                    No event found.
+                </div>
+
+            <?php endif; ?>
+
         </div>
 
-        <div class="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-            <table class="w-full text-left">
-                <thead class="bg-gray-50 border-b">
-                    <tr class="text-gray-500 uppercase text-[11px] tracking-widest font-bold">
-                        <th class="p-5">Event</th>
-                        <th class="p-5">Execution Date</th>
-                        <th class="p-5">Location</th>
-                        <th class="p-5">Status</th>
-                        <th class="p-5">Operational Links</th>
-                    </tr>
-                </thead>
-                <tbody id="management-table-body">
-                    <?php foreach ($allEvents as $e): ?>
-                    <tr class="border-b hover:bg-gray-50 searchable-row">
-                        <td class="p-5 font-bold event-name-text"><?= htmlspecialchars($e['eventName']) ?></td>
-                        <td class="p-5"><?= htmlspecialchars($e['eventDate']) ?></td>
-                        <td class="p-5"><?= htmlspecialchars($e['venueLocation']) ?></td>
-                        <td class="p-5"><span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">Open</span></td>
-                        <td class="p-5 flex gap-4 text-gray-400">
-                            <a href="#"><span class="material-icons text-sm">visibility</span></a>
-                            <a href="edit_event.php?id=<?= $e['eventID'] ?>"><span class="material-icons text-sm">edit</span></a>
-                            <form method="POST"><input type="hidden" name="action" value="delete"><input type="hidden" name="eventID" value="<?= $e['eventID'] ?>"><button><span class="material-icons text-sm text-red-500">delete</span></button></form>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
     </main>
+
 </div>
-<script>
-document.getElementById('search-input').addEventListener('input', function(e) {
-    const q = e.target.value.toLowerCase();
-    document.querySelectorAll('.searchable-row').forEach(row => {
-        row.style.display = row.querySelector('.event-name-text').textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-});
-</script>
+
 </body>
 </html>
