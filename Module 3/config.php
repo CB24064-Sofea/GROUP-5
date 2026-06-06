@@ -2,6 +2,7 @@
 // config.php
 session_start();
 $host = 'localhost';
+$port = 3307;        
 $user = 'root';
 $pass = '';
 $dbname = 'group5';
