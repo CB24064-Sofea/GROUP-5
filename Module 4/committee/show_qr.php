@@ -13,7 +13,7 @@ $url = $base_url . "/WEB_ENGINEERING/Module_4/committee/mark_attendance.php?even
 
 // No options – uses default PNG output
 $qrCode = new QRCode;
-$qrDataUri = $qrCode->render($url); // returns a data URI like "data:image/png;base64,..."
+$qrDataUri = $qrCode->render($url);
 ?>
 <!DOCTYPE html>
 <html>
@@ -29,7 +29,7 @@ $qrDataUri = $qrCode->render($url); // returns a data URI like "data:image/png;b
             <img src="<?= $qrDataUri ?>" alt="QR Code">
         </div>
         <p><strong>Event ID:</strong> <?= htmlspecialchars($eventID) ?></p>
-        <a href="dashboard.php" class="btn btn-cancel">Back to Dashboard</a>
+        <a href="manage_attendance.php?event_id=<?= $eventID ?>" class="btn btn-cancel">Back</a>
     </div>
 </body>
 </html>
