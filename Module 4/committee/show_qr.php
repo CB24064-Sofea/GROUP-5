@@ -8,6 +8,13 @@ if ($_SESSION['role'] != 'Committee') die("Access denied.");
 $eventID = $_GET['event_id'] ?? 0;
 if (!$eventID) die("Event ID missing.");
 
+// Fetch the event name from the database
+$eventInfo = $conn->query("SELECT eventName FROM event WHERE eventID = '$eventID'")->fetch_assoc();
+if (!$eventInfo) {
+    die("Event not found.");
+}
+$eventName = $eventInfo['eventName'];
+
 $base_url = (isset($_SERVER['HTTPS']) ? "https://" : "http://") . $_SERVER['HTTP_HOST'];
 $url = $base_url . "/WEB_ENGINEERING/Module_4/committee/mark_attendance.php?event_id=" . $eventID;
 
@@ -28,7 +35,7 @@ $qrDataUri = $qrCode->render($url);
         <div style="margin:20px 0;">
             <img src="<?= $qrDataUri ?>" alt="QR Code">
         </div>
-        <p><strong>Event ID:</strong> <?= htmlspecialchars($eventID) ?></p>
+        <p><strong>Event Name:</strong> <?= htmlspecialchars($eventName) ?></p>
         <a href="manage_attendance.php?event_id=<?= $eventID ?>" class="btn btn-cancel">Back</a>
     </div>
 </body>

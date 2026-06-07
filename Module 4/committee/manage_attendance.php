@@ -5,7 +5,7 @@ if ($_SESSION['role'] != 'Committee') {
     exit();
 }
 
-$userID = $_SESSION['userID'];   // ← was missing
+$userID = $_SESSION['userID'];
 
 // Get the club ID of this committee member
 $club = $conn->query("SELECT clubID FROM club_committee WHERE userID='$userID'")->fetch_assoc();
@@ -19,6 +19,15 @@ $eventID = $_GET['event_id'] ?? 0;
 if (!$eventID) {
     die("Event ID missing.");
 }
+
+// Fetch event details (name, date, time)
+$eventInfo = $conn->query("SELECT eventName, eventDate, eventTime FROM event WHERE eventID = '$eventID'")->fetch_assoc();
+if (!$eventInfo) {
+    die("Event not found.");
+}
+$eventName = $eventInfo['eventName'];
+$eventDate = $eventInfo['eventDate'];
+$eventTime = date("h:i A", strtotime($eventInfo['eventTime'])); // format time nicely
 
 // Fetch participants for this event
 $participants = $conn->query("
@@ -42,7 +51,13 @@ $page_title = "Mark Attendance";
     <div class="app-container">
         <?php include '../sidebar.php'; ?>
         <div class="main-content">
-            <h1 class="page-title">Mark Attendance - Event ID <?= htmlspecialchars($eventID) ?></h1>
+            <h1 class="page-title">Mark Attendance - Event: <?= htmlspecialchars($eventName) ?></h1>
+            
+            <div style="margin-bottom: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                <strong>Event Date:</strong> <?= htmlspecialchars($eventDate) ?> &nbsp;|&nbsp;
+                <strong>Event Time:</strong> <?= htmlspecialchars($eventTime) ?>
+            </div>
+
             <div class="qr-code-container">
                 <a href="show_qr.php?event_id=<?= $eventID ?>" class="btn btn-primary">Show QR Code</a>
             </div>
@@ -64,7 +79,7 @@ $page_title = "Mark Attendance";
                 </tbody>
             </table>
 
-            <a href="attendance.php" class="btn btn-cancel">Back</a>
+            <a href="dashboard.php" class="btn btn-cancel">Back</a>
         </div>
     </div>
     <?php include '../includes/footer.php'; ?>
