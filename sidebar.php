@@ -11,15 +11,18 @@ $userRole = $_SESSION['role'];
         
         <?php elseif ($userRole == 'Committee'): ?>
             <a href="../committee/dashboard.php" class="nav-item">Dashboard</a>
-            <a href="../committee/dashboard.php" class="nav-item">Events</a>
-            <a href="../committee/dashboard.php" class="nav-item">Attendance</a>
+            <a href="../committee/events.php" class="nav-item">Events</a>
+            <a href="../committee/attendance.php" class="nav-item">Attendance</a>
+            <a href="../committee/members.php" class="nav-item">Members</a>
+            <a href="../committee/reports.php" class="nav-item">Reports</a>
+            
             <!-- Committee can manage their club events and attendance -->
         
         <?php else: // Student ?>
             <a href="../student/dashboard.php" class="nav-item">Dashboard</a>
-            <a href="../student/dashboard.php" class="nav-item">My Points</a>
-            <a href="../student/dashboard.php" class="nav-item">History</a>
-            <a href="../student/dashboard.php" class="nav-item">Ranking</a>
+            <a href="../student/events.php" class="nav-item">Events</a>
+            <a href="../student/points.php" class="nav-item">My Points</a>
+            <a href="../student/history.php" class="nav-item">History</a>
         <?php endif; ?>
     </div>
     <a href="../logout.php" class="btn-logout">Logout</a>
