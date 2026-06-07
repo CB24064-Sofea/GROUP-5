@@ -1,7 +1,7 @@
 <?php
 
 require_once 'auth.php'; 
-require_once 'config.php'; 
+
 
 try {
     $clubs = $pdo->query("SELECT clubID, clubName FROM club ORDER BY clubName ASC")->fetchAll(PDO::FETCH_ASSOC);

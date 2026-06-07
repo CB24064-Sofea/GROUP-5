@@ -1,7 +1,7 @@
 <?php
 
 require_once 'auth.php'; 
-require_once 'config.php'; 
+
 
 $message = '';
 $messageType = '';
@@ -36,36 +36,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Book Event</title>
-    <style>
-        
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Event - FK Student Club & Event Management</title>
+    <link rel="stylesheet" href="../styles/standard.css">
 </head>
 <body>
 
     <header class="main-header">
         <div class="header-left">
-            <h1>Club Event System</h1>
+            <div class="logo-placeholder">
+                <img src="https://via.placeholder.com/45?text=UMPSA" alt="Logo">
+            </div>
+            <h1>FK Student Club & Event Management</h1>
         </div>
         <div class="header-right">
             <span class="admin-name"><?php echo htmlspecialchars($_SESSION['username'] ?? 'User'); ?></span>
+            <div class="profile-container">
+                <div class="profile-fallback">👤</div>
+            </div>
         </div>
     </header>
 
     <div class="app-container">
-        <nav class="sidebar">
-            <div class="sidebar-nav">
-                <a href="dashboard.php" class="nav-item">Dashboard</a>
-            </div>
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="event_management.php" class="nav-item">Dashboard</a>
+                <a href="events.php" class="nav-item">View Events</a>
+                <a href="register_event.php" class="nav-item">Register Event</a>
+                <a href="my_registration.php" class="nav-item">My Registrations</a>
+            </nav>
             <a href="logout.php" class="btn-logout">Logout</a>
-        </nav>
+        </aside>
 
         <main class="main-content">
             <div class="workspace-stack">
-                <h2 class="page-title">Register for Event</h2>
+                <h2 class="page-title">Book Event</h2>
                 
                 <?php if ($message): ?>
-                    <div class="alert alert-<?php echo $messageType; ?>"><?php echo $message; ?></div>
+                    <div class="alert alert-<?php echo $messageType; ?>">
+                        <?php echo htmlspecialchars($message); ?>
+                    </div>
                 <?php endif; ?>
 
                 <div class="form-card-container">
@@ -75,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <select name="event_id" class="input-control-select" required>
                                 <option value="">-- Select Event --</option>
                                 <?php foreach ($events as $ev): ?>
-                                    <option value="<?php echo $ev['eventID']; ?>">
+                                    <option value="<?php echo htmlspecialchars($ev['eventID']); ?>">
                                         <?php echo htmlspecialchars($ev['eventName']); ?> (<?php echo htmlspecialchars($ev['eventDate']); ?>)
                                     </option>
                                 <?php endforeach; ?>
@@ -84,12 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         <div class="form-actions-footer-bar">
                             <button type="submit" class="btn btn-submit">Submit Registration</button>
-                            <a href="my_registrations.php" class="btn btn-cancel">View My Bookings</a>
+                            <a href="my_registration.php" class="btn btn-cancel">View My Bookings</a>
                         </div>
                     </form>
                 </div>
             </div>
         </main>
     </div>
+
 </body>
 </html>

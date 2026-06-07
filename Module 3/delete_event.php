@@ -1,8 +1,5 @@
 <?php
-session_start();
-// Assuming config.php contains the PDO connection $pdo
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/auth.php'; // Ensure user is logged in/authorized
+require_once 'auth.php'; 
 
 /** @var PDO $pdo */
 

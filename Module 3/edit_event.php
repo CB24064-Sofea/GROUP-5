@@ -1,7 +1,6 @@
 <?php
 
-require_once 'auth.php'; // Ensures user is logged in
-require_once 'config.php'; 
+require_once 'auth.php'; 
 
 // Fetch the event ID from the request
 $eventID = isset($_GET['eventID']) ? intval($_GET['eventID']) : 0;

@@ -1,8 +1,5 @@
 <?php
-// Use your specific auth and config files
-require_once __DIR__ . '/../config.php';
-require_once __DIR__ . '/../auth.php'; 
-
+require_once 'auth.php'; 
 // Fetch messages if any (assuming you use sessions)
 $successMessage = $_SESSION['successMessage'] ?? '';
 $errorMessage = $_SESSION['errorMessage'] ?? '';

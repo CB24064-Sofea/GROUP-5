@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php'; // starts session and connects to DB
+require_once 'config.php';
 
 if (!isset($_SESSION['userID'])) {
     // Not logged in – this file should not be included directly, but just in case:

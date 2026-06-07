@@ -1,7 +1,7 @@
 <?php
-// Include your authentication and configuration files
+
 require_once 'auth.php'; 
-require_once 'config.php';
+
 
 // Check if user is logged in (Assuming auth.php manages this)
 if (!isset($_SESSION['user_id'])) {
