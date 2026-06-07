@@ -66,6 +66,7 @@ function requireEventOwnership($eventID) {
     if (!isCommittee()) {
         header("Location: index.php");
         exit();
+        //
     }
     $clubID = getCommitteeClubID(getUserID());
     $stmt = $conn->prepare("SELECT clubID FROM event WHERE eventID = ?");
