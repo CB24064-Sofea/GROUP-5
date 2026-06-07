@@ -1,101 +1,161 @@
 <?php
-require_once 'auth.php'; 
-// Fetch messages if any (assuming you use sessions)
-$successMessage = $_SESSION['successMessage'] ?? '';
-$errorMessage = $_SESSION['errorMessage'] ?? '';
-unset($_SESSION['successMessage'], $_SESSION['errorMessage']);
+require_once 'auth.php';
+requireCommitteeOrAdmin();
 
-// Database operations
-try {
-    // Counts based on group5.sql schema
-    $totalEvents = $pdo->query("SELECT COUNT(*) FROM event")->fetchColumn();
-    $upcomingEvents = $pdo->query("SELECT COUNT(*) FROM event WHERE eventDate > CURDATE()")->fetchColumn();
-    $completedEvents = $pdo->query("SELECT COUNT(*) FROM event WHERE eventDate <= CURDATE()")->fetchColumn();
-    $cancelledEvents = $pdo->query("SELECT COUNT(*) FROM event WHERE eventStatus = 'Cancelled'")->fetchColumn();
+$successMessage = flash('successMessage');
+$errorMessage = flash('errorMessage');
 
-    $statusFilter = $_GET['status'] ?? 'All Statuses';
-    
-    $query = "SELECT * FROM event ORDER BY eventDate DESC";
-    $events = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    die("Database error: " . $e->getMessage());
+$clubID = getCommitteeClubID();
+
+if (isCommittee()) {
+    $stmt = $conn->prepare("
+        SELECT 
+            e.*,
+            c.clubName,
+            COUNT(er.registrationID) AS registeredCount
+        FROM event e
+        LEFT JOIN club c ON e.clubID = c.clubID
+        LEFT JOIN event_registration er
+            ON e.eventID = er.eventID
+            AND er.registrationStatus = 'Success'
+        WHERE e.clubID = ?
+        GROUP BY e.eventID
+        ORDER BY e.eventDate DESC, e.eventTime DESC
+    ");
+    $stmt->bind_param("i", $clubID);
+} else {
+    $stmt = $conn->prepare("
+        SELECT 
+            e.*,
+            c.clubName,
+            COUNT(er.registrationID) AS registeredCount
+        FROM event e
+        LEFT JOIN club c ON e.clubID = c.clubID
+        LEFT JOIN event_registration er
+            ON e.eventID = er.eventID
+            AND er.registrationStatus = 'Success'
+        GROUP BY e.eventID
+        ORDER BY e.eventDate DESC, e.eventTime DESC
+    ");
 }
+
+$stmt->execute();
+$events = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+if (isCommittee()) {
+    $statsStmt = $conn->prepare("
+        SELECT
+            COUNT(*) AS totalEvents,
+            SUM(eventDate > CURDATE()) AS upcomingEvents,
+            SUM(eventStatus = 'Completed') AS completedEvents,
+            SUM(eventStatus = 'Cancelled') AS cancelledEvents
+        FROM event
+        WHERE clubID = ?
+    ");
+    $statsStmt->bind_param("i", $clubID);
+} else {
+    $statsStmt = $conn->prepare("
+        SELECT
+            COUNT(*) AS totalEvents,
+            SUM(eventDate > CURDATE()) AS upcomingEvents,
+            SUM(eventStatus = 'Completed') AS completedEvents,
+            SUM(eventStatus = 'Cancelled') AS cancelledEvents
+        FROM event
+    ");
+}
+
+$statsStmt->execute();
+$stats = $statsStmt->get_result()->fetch_assoc();
+$statsStmt->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Event Management - FK Student Club</title>
-    <style>
-        /* [INSERT THE CSS YOU PROVIDED IN THE PROMPT HERE] */
-        /* Ensuring standard theme for all pages */
-    </style>
+    <title>Event Management</title>
+    <link rel="stylesheet" href="standard.css">
 </head>
 <body>
+<?php include 'M3_topbar.php'; ?>
 
-    <header class="main-header">
-        <div class="header-left">
-            <div class="logo-placeholder">FK Logo</div>
-            <h1>Event Management</h1>
-        </div>
-        <div class="header-right">
-            <span class="admin-name"><?php echo $_SESSION['user_name'] ?? 'Admin'; ?></span>
-        </div>
-    </header>
+<div class="app-container">
+    <?php include 'M3_sidebar.php'; ?>
 
-    <div class="app-container">
-        <aside class="sidebar">
-            <nav class="sidebar-nav">
-                <a href="dashboard.php" class="nav-item">Dashboard</a>
-                <div class="submenu-container">
-                    <div class="nav-item">Events</div>
-                    <div class="submenu">
-                        <a href="event_management.php" class="sub-nav-item active-sub">Manage Events</a>
-                        <a href="create_event.php" class="sub-nav-item">Create New</a>
-                    </div>
-                </div>
-            </nav>
-            <a href="../logout.php" class="btn-logout">Logout</a>
-        </aside>
+    <main class="main-content">
+        <div class="workspace-stack">
+            <?php if ($successMessage): ?>
+                <div class="alert alert-success"><?= htmlspecialchars($successMessage) ?></div>
+            <?php endif; ?>
 
-        <main class="main-content">
-            <?php if ($successMessage): ?><div class="alert"><?php echo $successMessage; ?></div><?php endif; ?>
-            
+            <?php if ($errorMessage): ?>
+                <div class="alert alert-error"><?= htmlspecialchars($errorMessage) ?></div>
+            <?php endif; ?>
+
             <h2 class="page-title">Event Overview</h2>
 
-            <div class="form-card-container" style="display: flex; justify-content: space-around; margin-bottom: 20px;">
-                <div>Total: <?php echo $totalEvents; ?></div>
-                <div>Upcoming: <?php echo $upcomingEvents; ?></div>
-                <div>Completed: <?php echo $completedEvents; ?></div>
+            <div class="form-card-container">
+                <p><strong>Total Events:</strong> <?= (int)$stats['totalEvents'] ?></p>
+                <p><strong>Upcoming Events:</strong> <?= (int)$stats['upcomingEvents'] ?></p>
+                <p><strong>Completed Events:</strong> <?= (int)$stats['completedEvents'] ?></p>
+                <p><strong>Cancelled Events:</strong> <?= (int)$stats['cancelledEvents'] ?></p>
             </div>
 
             <div class="form-card-container">
-                <table style="width: 100%; border-collapse: collapse;">
+                <p style="margin-bottom: 15px;">
+                    <a href="create_event.php" class="btn btn-submit">Create New Event</a>
+                </p>
+
+                <table>
                     <thead>
-                        <tr style="text-align: left; border-bottom: 2px solid #eee;">
-                            <th>Title</th>
+                        <tr>
+                            <th>Event</th>
+                            <th>Club</th>
                             <th>Date</th>
+                            <th>Time</th>
                             <th>Venue</th>
+                            <th>Participants</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <?php if (!$events): ?>
+                            <tr>
+                                <td colspan="8">No events found.</td>
+                            </tr>
+                        <?php endif; ?>
+
                         <?php foreach ($events as $event): ?>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px;"><?php echo htmlspecialchars($event['eventTitle']); ?></td>
-                            <td><?php echo $event['eventDate']; ?></td>
-                            <td><?php echo htmlspecialchars($event['eventVenue']); ?></td>
-                            <td><?php echo htmlspecialchars($event['eventStatus']); ?></td>
-                            <td>
-                                <a href="edit_event.php?id=<?php echo $event['Event_ID']; ?>">Edit</a>
-                            </td>
-                        </tr>
+                            <tr>
+                                <td><?= htmlspecialchars($event['eventName']) ?></td>
+                                <td><?= htmlspecialchars($event['clubName'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($event['eventDate']) ?></td>
+                                <td><?= htmlspecialchars(substr($event['eventTime'], 0, 5)) ?></td>
+                                <td><?= htmlspecialchars($event['venueLocation']) ?></td>
+                                <td><?= (int)$event['registeredCount'] ?> / <?= (int)$event['maxParticipants'] ?></td>
+                                <td>
+                                    <span class="status-badge">
+                                        <?= htmlspecialchars($event['eventStatus']) ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="view_event.php?id=<?= $event['eventID'] ?>" class="btn">View</a>
+                                    <a href="edit_event.php?id=<?= $event['eventID'] ?>" class="btn">Edit</a>
+                                    <a href="delete_event.php?id=<?= $event['eventID'] ?>"
+                                       class="btn btn-danger"
+                                       onclick="return confirm('Delete this event?');">
+                                        Delete
+                                    </a>
+                                </td>
+                            </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
+</div>
 </body>
 </html>

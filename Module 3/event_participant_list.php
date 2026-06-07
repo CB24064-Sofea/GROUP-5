@@ -1,84 +1,148 @@
 <?php
-require_once 'auth.php'; 
+require_once 'auth.php';
+requireCommitteeOrAdmin();
+
+$clubID = getCommitteeClubID();
+$eventID = isset($_GET['eventID']) ? (int)$_GET['eventID'] : 0;
+
+if (isCommittee()) {
+    $stmt = $conn->prepare("
+        SELECT eventID, eventName
+        FROM event
+        WHERE clubID = ?
+        ORDER BY eventDate DESC
+    ");
+    $stmt->bind_param("i", $clubID);
+} else {
+    $stmt = $conn->prepare("
+        SELECT eventID, eventName
+        FROM event
+        ORDER BY eventDate DESC
+    ");
+}
+
+$stmt->execute();
+$events = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+if ($eventID === 0 && $events) {
+    $eventID = (int)$events[0]['eventID'];
+}
+
+$participants = [];
+
+if ($eventID > 0 && canManageEvent($eventID)) {
+    $stmt = $conn->prepare("
+        SELECT
+            er.registrationID,
+            er.registrationStatus,
+            er.registrationDate,
+            u.userID,
+            u.name,
+            u.email,
+            s.program
+        FROM event_registration er
+        JOIN user u ON er.userID = u.userID
+        LEFT JOIN student s ON u.userID = s.userID
+        WHERE er.eventID = ?
+        ORDER BY u.name ASC
+    ");
+    $stmt->bind_param("i", $eventID);
+    $stmt->execute();
+    $participants = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+}
+
+$successMessage = flash('successMessage');
+$errorMessage = flash('errorMessage');
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Event Participant List</title>
-    <style>
-        /* Your Standardized CSS */
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f5f6fa; color: #333; display: flex; flex-direction: column; min-height: 100vh; }
-        .main-header { background-color: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; border-bottom: 2px solid #e0e0e0; height: 70px; }
-        .app-container { display: flex; flex: 1; }
-        .sidebar { width: 240px; background-color: #ffffff; border-right: 2px solid #e0e0e0; padding: 20px 15px; display: flex; flex-direction: column; }
-        .nav-item { width: 100%; padding: 12px 15px; margin-bottom: 10px; border: 1px solid #dcdde1; border-radius: 5px; text-decoration: none; display: block; color: #333; font-weight: 500; }
-        .nav-item:hover { background-color: #f1f2f6; }
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
-        .btn-logout { margin-top: auto; padding: 12px; background-color: #feeaee; color: #c0392b; border: 1px solid #fab1a0; border-radius: 5px; text-align: center; text-decoration: none; font-weight: 600; }
-        
-        /* Specific Page Components */
-        .page-title { text-align: center; font-size: 1.6rem; color: #2c3e50; border: 1px solid #b2bec3; background-color: #ffffff; padding: 12px; border-radius: 5px; margin-bottom: 20px; }
-        .form-card-container { background-color: #ffffff; border: 1px solid #b2bec3; border-radius: 6px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.01); }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; border: 1px solid #dcdde1; text-align: left; }
-        th { background-color: #f8f9fa; }
-        .btn-action { padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; }
-        .btn-view { background: #3498db; color: white; }
-        .btn-remove { background: #e74c3c; color: white; }
-    </style>
+    <link rel="stylesheet" href="standard.css">
 </head>
 <body>
-
-<header class="main-header">
-    <div class="header-left"><h1>FK Student Club & Event System</h1></div>
-    <div class="header-right"><span class="admin-name"><?php echo $_SESSION['username']; ?></span></div>
-</header>
+<?php include 'M3_topbar.php'; ?>
 
 <div class="app-container">
-    <aside class="sidebar">
-        <nav class="sidebar-nav">
-            <a href="dashboard.php" class="nav-item">Dashboard</a>
-            <a href="event_list.php" class="nav-item">Event Management</a>
-            <a href="participants.php" class="nav-item" style="background-color: #f1f2f6;">Participant List</a>
-        </nav>
-        <a href="logout.php" class="btn-logout">Logout</a>
-    </aside>
+    <?php include 'M3_sidebar.php'; ?>
 
     <main class="main-content">
         <div class="workspace-stack">
             <h2 class="page-title">Event Participant List</h2>
-            
+
+            <?php if ($successMessage): ?>
+                <div class="alert alert-success"><?= htmlspecialchars($successMessage) ?></div>
+            <?php endif; ?>
+
+            <?php if ($errorMessage): ?>
+                <div class="alert alert-error"><?= htmlspecialchars($errorMessage) ?></div>
+            <?php endif; ?>
+
             <div class="form-card-container">
+                <form method="GET" class="form-group-row">
+                    <label>Select Event</label>
+                    <select name="eventID" onchange="this.form.submit()">
+                        <?php foreach ($events as $event): ?>
+                            <option value="<?= $event['eventID'] ?>" <?= $eventID === (int)$event['eventID'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($event['eventName']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>User ID</th>
                             <th>Name</th>
                             <th>Programme</th>
+                            <th>Email</th>
                             <th>Status</th>
+                            <th>Registered At</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>FK20230123</td>
-                            <td>Ayesha Khan</td>
-                            <td>BS Computer Science</td>
-                            <td>Confirmed</td>
-                            <td>
-                                <a href="#" class="btn-action btn-view">View</a>
-                                <a href="#" class="btn-action btn-remove">Remove</a>
-                            </td>
-                        </tr>
+                        <?php if (!$participants): ?>
+                            <tr>
+                                <td colspan="7">No participants found.</td>
+                            </tr>
+                        <?php endif; ?>
+
+                        <?php foreach ($participants as $participant): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($participant['userID']) ?></td>
+                                <td><?= htmlspecialchars($participant['name']) ?></td>
+                                <td><?= htmlspecialchars($participant['program'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($participant['email']) ?></td>
+                                <td>
+                                    <span class="status-badge">
+                                        <?= htmlspecialchars($participant['registrationStatus']) ?>
+                                    </span>
+                                </td>
+                                <td><?= htmlspecialchars($participant['registrationDate']) ?></td>
+                                <td>
+                                    <?php if ($participant['registrationStatus'] === 'Success'): ?>
+                                        <a href="manage_event_participant.php?action=remove&registrationID=<?= $participant['registrationID'] ?>&eventID=<?= $eventID ?>"
+                                           class="btn btn-danger"
+                                           onclick="return confirm('Remove this participant?');">
+                                            Remove
+                                        </a>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </main>
 </div>
-
 </body>
 </html>
