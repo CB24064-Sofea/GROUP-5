@@ -6,6 +6,7 @@ $userRole = $_SESSION['role'];
     <div class="sidebar-nav">
         <?php if ($userRole == 'Admin'): ?>
             <a href="../admin/dashboard.php" class="nav-item">Dashboard</a>
+            <a href="../admin/students.php" class="nav-item">Student History</a>
             <a href="../admin/reports.php" class="nav-item">Reports</a>
             <!-- Add any other admin links as per project instruction -->
         
@@ -14,6 +15,7 @@ $userRole = $_SESSION['role'];
             <a href="../committee/events.php" class="nav-item">Events</a>
             <a href="../committee/attendance.php" class="nav-item">Attendance</a>
             <a href="../committee/members.php" class="nav-item">Members</a>
+            <a href="../committee/students.php" class="nav-item">Student History</a>
             <a href="../committee/reports.php" class="nav-item">Reports</a>
             
             <!-- Committee can manage their club events and attendance -->

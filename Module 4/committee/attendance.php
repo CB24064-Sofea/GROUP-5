@@ -19,7 +19,7 @@ $events = $conn->query("SELECT eventID, eventName, eventDate, maxParticipants FR
     <div class="app-container">
         <?php include '../sidebar.php'; ?>
         <div class="main-content">
-            <h1 class="page-title">Committee Dashboard</h1>
+            <h1 class="page-title">Attendance</h1>
                 <h2>Your Club Events</h2>
                     <table class="data-table">
                     <thead><tr><th>Event Name</th><th>Date</th><th>Max Participants</th><th>Actions</th></tr></thead>
