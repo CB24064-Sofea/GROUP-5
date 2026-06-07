@@ -399,10 +399,10 @@ $studentsResult = mysqli_query($link, $studentsQuery);
 
                 <a href="manageClub/manage_club.php" class="nav-item">Clubs</a>
                 <a href="#" class="nav-item">Events</a>
-                <a href="#" class="nav-item">Attendance</a>
-                <a href="#" class="nav-item">Reports</a>
+                <a href="../module 4/admin/dashboard.php" class="nav-item">Attendance</a>
+                <a href="../module 4/admin/dashboard.php" class="nav-item">Reports</a>
             </nav>
-            <a href="#" class="btn-logout">logout</a>
+            <a href="../module1/logout.php" class="btn-logout">logout</a>
         </aside>
 
         <main class="main-content">

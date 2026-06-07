@@ -1,8 +1,20 @@
 <?php
+session_start();
 $host = "127.0.0.1:3307"; 
 $user = "root";
 $password = "";
 $database = "group5"; 
+
+//not admin, unauthorized
+if (!isset($_SESSION['userID']) || $_SESSION['role'] !== 'Admin') {
+    echo "
+    <script>
+        alert('Unauthorized access! Please login as an Admin.');
+        window.location='../login.php'; 
+    </script>
+    ";
+    exit();
+}
 
 // Connect
 $link = mysqli_connect($host, $user, $password) or die("Connection failed: " . mysqli_connect_error());
@@ -10,7 +22,6 @@ $link = mysqli_connect($host, $user, $password) or die("Connection failed: " . m
 // Select
 mysqli_select_db($link, $database) or die("Database selection failed: " . mysqli_error($link));
 
-// 2. Fetch Live Dashboard Metrics
 $totalClubs = 0;
 $activeClubs = 0;
 $totalStudentsJoined = 450; 
@@ -296,7 +307,7 @@ if ($userResult && mysqli_num_rows($userResult) > 0) {
             <h1>FK Student Club & Event Management</h1>
         </div>
         <div class="header-right">
-            <span class="admin-name">Admin Name</span>
+            <span class="admin-name"><?php echo htmlspecialchars($_SESSION['name']); ?></span>
             <div class="profile-container">
                 <?php if (!empty($user_blob_string)): ?>
                     <img src="data:<?php echo $image_mime_type; ?>;base64,<?php echo $user_blob_string; ?>" alt="User Profile">
@@ -313,11 +324,11 @@ if ($userResult && mysqli_num_rows($userResult) > 0) {
                 <a href="admin_dashboard.php" class="nav-item active">Dashboard</a>
                 <a href="manageCommittee/manage_committee.php" class="nav-item">Committee</a>
                 <a href="manageClub/manage_club.php" class="nav-item">Clubs</a>
-                <a href="manage_events.php" class="nav-item">Events</a>
-                <a href="attendance.php" class="nav-item">Attendance</a>
-                <a href="reports.php" class="nav-item">Reports</a>
+                <a href="#" class="nav-item">Events</a>
+                <a href="../module 4/admin/dashboard.php" class="nav-item">Attendance</a>
+                <a href="../module 4/admin/reports.php" class="nav-item">Reports</a>
             </nav>
-            <a href="logout.php" class="btn-logout">logout</a>
+            <a href="../module1/logout.php" class="btn-logout">logout</a>
         </aside>
 
         <main class="main-content">

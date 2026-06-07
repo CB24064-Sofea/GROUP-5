@@ -1,12 +1,20 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+session_start();
 $host = "127.0.0.1:3307"; 
 $user = "root";
 $password = "";
 $database = "group5";
+
+//not admin, unauthorized
+if (!isset($_SESSION['userID']) || $_SESSION['role'] !== 'Admin') {
+    echo "
+    <script>
+        alert('Unauthorized access! Please login as an Admin.');
+        window.location='../login.php'; 
+    </script>
+    ";
+    exit();
+}
 
 $link = mysqli_connect($host, $user, $password) or die("Connection failed: " . mysqli_connect_error());
 mysqli_select_db($link, $database) or die("Database selection failed: " . mysqli_error($link));
@@ -383,7 +391,8 @@ $result = mysqli_query($link, $query);
             <h1>FK Student Club & Event Management</h1>
         </div>
         <div class="header-right">
-            <span class="admin-name">Admin Name</span>
+            <span class="admin-name"><?php echo htmlspecialchars($_SESSION['name']); ?></span>
+            
             <div class="profile-container">
                 <?php if (!empty($user_blob_string)): ?>
                     <img src="data:<?php echo $image_mime_type; ?>;base64,<?php echo $user_blob_string; ?>" alt="User Profile">
@@ -408,11 +417,11 @@ $result = mysqli_query($link, $query);
                     </div>
                 </div>
 
-                <button class="nav-item">Events</button>
-                <button class="nav-item">Attendance</button>
-                <button class="nav-item">Reports</button>
+                <a href="#" class="nav-item">Events</a>
+                <a href="../../module 4/admin/dashboard.php" class="nav-item">Attendance</a>
+                <a href="../../module 4/admin/reports.php" class="nav-item">Reports</a>
             </nav>
-            <a href="#" class="btn-logout">Logout</a>
+            <a href="../../module1/logout.php" class="btn-logout">Logout</a>
         </aside>
 
         <main class="main-content">

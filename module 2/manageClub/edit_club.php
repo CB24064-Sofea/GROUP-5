@@ -432,10 +432,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['clubId'])) {
                 </div>
 
                 <a href="#" class="nav-item">Events</a>
-                <a href="#" class="nav-item">Attendance</a>
-                <a href="#" class="nav-item">Reports</a>
+                <a href="../../module 4/admin/dashboard.php" class="nav-item">Attendance</a>
+                <a href="../../module 4/admin/reports.php" class="nav-item">Reports</a>
             </nav>
-            <a href="logout.php" class="btn-logout" style="text-align: center; line-height: 20px;">Logout</a>
+            <a href="../../module1/logout.php" class="btn-logout" style="text-align: center; line-height: 20px;">Logout</a>
         </aside>
 
         <main class="main-content">

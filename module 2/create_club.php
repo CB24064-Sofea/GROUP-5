@@ -1,16 +1,27 @@
 <?php
-// 1. Database Connection Configuration
-$host = "127.0.0.1:3307"; // Keep 3307 if your MySQL uses this custom port
+session_start();
+$host = "127.0.0.1:3307"; 
 $user = "root";
 $password = "";
 $database = "group5"; 
-// Connect to the database server
+
+//not admin, unauthorized
+if (!isset($_SESSION['userID']) || $_SESSION['role'] !== 'Admin') {
+    echo "
+    <script>
+        alert('Unauthorized access! Please login as an Admin.');
+        window.location='../login.php'; 
+    </script>
+    ";
+    exit();
+}
+
+// Connect
 $link = mysqli_connect($host, $user, $password) or die("Connection failed: " . mysqli_connect_error());
 
-// Select the database
+// Select
 mysqli_select_db($link, $database) or die("Database selection failed: " . mysqli_error($link));
 
-// Initialize messages for user feedback
 $message = "";
 $messageClass = "";
 
@@ -367,7 +378,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <h1>FK Student Club & Event Management</h1>
         </div>
         <div class="header-right">
-            <span class="admin-name">Admin Name</span>
+            <span class="admin-name"><?php echo htmlspecialchars($_SESSION['name']); ?></span>
             <div class="profile-container">
                 <?php if (!empty($user_blob_string)): ?>
                     <img src="data:<?php echo $image_mime_type; ?>;base64,<?php echo $user_blob_string; ?>" alt="User Profile">
@@ -393,10 +404,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
 
                 <a href="#" class="nav-item">Events</a>
-                <a href="#" class="nav-item">Attendance</a>
-                <a href="#" class="nav-item">Reports</a>
+                <a href="../module 4/admin/dashboard.php" class="nav-item">Attendance</a>
+                <a href="../module 4/admin/reports.php" class="nav-item">Reports</a>
             </nav>
-            <a href="#" class="btn-logout">Logout</a> </aside>
+            <a href="../module1/logout.php" class="btn-logout">Logout</a> </aside>
 
         <main class="main-content">
             <div class="form-container">
