@@ -24,7 +24,7 @@ if ($user) {
 <header class="main-header">
     <div class="header-left">
         <div class="logo-placeholder">
-            <img src="../assets/FK logo.png" alt="Logo FK">
+            <img src="../module 2/UMP LOGO.png" alt="Universiti Malaysia Pahang Logo">
         </div>
         <h1>FK Student Club &amp; Event Management</h1>
     </div>
@@ -36,7 +36,7 @@ if ($user) {
             <?php if ($profileImageSrc): ?>
                 <img src="<?= htmlspecialchars($profileImageSrc) ?>" alt="Profile Picture" class="profile-pic">
             <?php else: ?>
-                <div class="profile-fallback">?</div>
+                <div class="profile-fallback">👤</div>
             <?php endif; ?>
         </div>
     </div>
