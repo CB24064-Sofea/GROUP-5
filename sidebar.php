@@ -20,6 +20,7 @@ $userRole = $_SESSION['role'];
         
         <?php else: // Student ?>
             <a href="../student/dashboard.php" class="nav-item">Dashboard</a>
+            <a href="../student/profile.php" class="nav-item">Profile</a>
             <a href="../student/events.php" class="nav-item">Events</a>
             <a href="../student/points.php" class="nav-item">My Points</a>
             <a href="../student/history.php" class="nav-item">History</a>
